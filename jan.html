@@ -70,6 +70,23 @@ tr[data-h]{cursor:pointer}
 .tag{display:inline-block;font-size:11px;padding:0 6px;border-radius:6px;margin-left:5px;vertical-align:1px;color:#fff}
 .tag.food{background:var(--food)}.tag.see{background:var(--see)}.tag.stay{background:var(--stay)}.tag.fly{background:var(--plane)}
 .mv{font-size:12px;color:var(--sub);margin:-1px 0 6px 4px}
+/* 일정 애니메이션 (▶ 눌렀을 때만) */
+.tl::after{content:"";position:absolute;left:-2px;top:0;width:2px;height:var(--p,0px);background:var(--dc);transition:height .6s ease}
+.stop.done{opacity:.62}.stop.done::before{background:var(--dc);box-shadow:0 0 0 3px color-mix(in srgb,var(--dc) 25%,transparent)}
+.stop.done .tm::after{content:" ✓";color:var(--dc);font-weight:800}
+.stop.now{animation:pulse 1.4s ease-in-out infinite}
+.stop.now::before{transform:scale(1.35);transition:transform .3s}
+@keyframes pulse{50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--dc) 18%,transparent)}}
+.mv{position:relative;border-radius:6px;padding:2px 6px;overflow:hidden}
+.mv.go{color:var(--ink);font-weight:700;background:color-mix(in srgb,var(--dc) 12%,transparent)}
+.mv.go::after{content:"";position:absolute;left:0;bottom:0;height:2px;background:var(--dc);animation:fill var(--dur,1s) ease-in-out forwards}
+.mv.go .ic{display:inline-block;animation:hop .5s ease-in-out infinite alternate}
+@keyframes fill{from{width:0}to{width:100%}}@keyframes hop{to{transform:translateX(5px)}}
+.dh .n.pop{animation:pop .6s cubic-bezier(.3,1.6,.5,1)}@keyframes pop{0%{transform:scale(.6)}100%{transform:scale(1)}}
+.day.rise .stop,.day.rise .mv{animation:rise .45s ease both;animation-delay:calc(var(--i,0)*45ms)}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}}
+.day.rise .stop.now{animation:rise .45s ease both,pulse 1.4s ease-in-out .5s infinite;animation-delay:calc(var(--i,0)*45ms),.6s}
+@media (prefers-reduced-motion:reduce){.stop.now,.mv.go::after,.mv.go .ic,.dh .n.pop,.day.rise .stop,.day.rise .mv{animation:none}.tl::after{transition:none}}
 </style></head><body>
 <header class="hero"><div class="k" id="hk">2027년 1월 · 6명</div>
 <h1>🦀 요나고 6인 여행 · 1월 7–10일</h1>
@@ -308,31 +325,39 @@ const days=document.getElementById("days"),bar=document.getElementById("bar");
 DAYS.forEach((d,di)=>{const c=css(d.c);
  const b=document.createElement("button");b.id="db"+di;b.innerHTML=`<i style="background:${c}"></i>${d.n.replace("<br>"," ")}`;b.onclick=()=>{document.getElementById("day"+di).scrollIntoView({behavior:"smooth"});play(di,di)};bar.appendChild(b);
  let h=`<section class="day" id="day${di}" style="--dc:${c}"><div class="dh"><span class="n" id="dn${di}" style="background:${c}">${d.n}</span><h3>${d.t}<small>${d.s}</small></h3><button data-di="${di}">▶ 재생</button></div><div class="tl">`;
- d.stops.forEach((s,k)=>{if(s[4]&&k>0&&d.stops[k-1][3]!==s[3]){const M=MODE[s[4]];h+=`<div class="mv">${M.i} ${M.l}${s[6]?" · "+s[6]:""}</div>`}
+ d.stops.forEach((s,k)=>{if(s[4]&&k>0&&d.stops[k-1][3]!==s[3]){const M=MODE[s[4]];h+=`<div class="mv" id="mv${di}-${k}"><span class="ic">${M.i}</span> ${M.l}${s[6]?" · "+s[6]:""}</div>`}
   const tg=s[5]?`<span class="tag ${s[5]}">${{food:"맛집",see:"명소",stay:"숙소",fly:"항공"}[s[5]]}</span>`:"";
   h+=`<div class="stop" id="s${di}-${k}" data-di="${di}" data-k="${k}"><div class="tm">${s[0]}</div><h4>${s[1]}${tg}</h4>${s[2]?`<p>${s[2]}</p>`:""}</div>`});
  days.insertAdjacentHTML("beforeend",h+`</div></section>`)});
+days.querySelectorAll(".tl").forEach(t=>[...t.children].forEach((c,i)=>c.style.setProperty("--i",i)));
 days.querySelectorAll(".dh button").forEach(b=>b.onclick=()=>play(+b.dataset.di,+b.dataset.di));
 days.querySelectorAll(".stop").forEach(el=>el.onclick=()=>{stop();const s=DAYS[el.dataset.di].stops[el.dataset.k];mark(el);map.flyTo(P[s[3]],Math.max(map.getZoom(),13),{duration:.8})});
-document.getElementById("playall").onclick=()=>play(0,3);
+document.getElementById("playall").onclick=()=>{if(playing){stop();say("⏹ 정지");return}play(0,3)};
 let mover=null,raf=0,playing=false,timer=0;const toast=document.getElementById("toast");
 function say(t){toast.innerHTML=t;toast.style.opacity=1;clearTimeout(say.t);say.t=setTimeout(()=>toast.style.opacity=0,2600)}
 function mark(el){document.querySelectorAll(".stop.now").forEach(e=>e.classList.remove("now"));if(el)el.classList.add("now")}
-function stop(){playing=false;cancelAnimationFrame(raf);clearTimeout(timer);if(mover){mover.remove();mover=null}anim.clearLayers()}
+function stop(){playing=false;cancelAnimationFrame(raf);clearTimeout(timer);if(mover){mover.remove();mover=null}anim.clearLayers();
+ document.querySelectorAll(".stop.done").forEach(e=>e.classList.remove("done"));document.querySelectorAll(".mv.go").forEach(e=>e.classList.remove("go"));
+ document.querySelectorAll(".day.rise").forEach(e=>e.classList.remove("rise"));document.querySelectorAll(".tl").forEach(t=>t.style.removeProperty("--p"));
+ document.getElementById("playall").textContent="▶ 전체 동선"}
+function fillTo(el){const tl=el.closest(".tl");tl.style.setProperty("--p",(el.offsetTop+20)+"px");
+ const all=[...document.querySelectorAll(".stop")],n=all.indexOf(el);all.forEach((e,j)=>e.classList.toggle("done",j<n));
+ document.querySelectorAll(".tl").forEach(t=>{if(t!==tl&&t.compareDocumentPosition(tl)&Node.DOCUMENT_POSITION_FOLLOWING)t.style.setProperty("--p","100%")})}
+function dayStart(di){const sec=document.getElementById("day"+di),n=document.getElementById("dn"+di);sec.classList.remove("rise");n.classList.remove("pop");void sec.offsetWidth;sec.classList.add("rise");n.classList.add("pop")}
 function play(d0,d1){stop();playing=true;const seq=LEGS.filter(l=>l.di>=d0&&l.di<=d1);let i=0,lastDay=-1;
- mark(document.getElementById(`s${d0}-0`));mover=L.marker(seq[0].pts[0],{icon:icon("📍"),zIndexOffset:1000}).addTo(map);
- function next(){if(!playing)return;if(i>=seq.length){say("🎉 여행 끝! 수고하셨어요");playing=false;return}
+ document.getElementById("playall").textContent=d0===0&&d1===3?"⏹ 정지":"▶ 전체 동선";dayStart(d0);const e0=document.getElementById(`s${d0}-0`);mark(e0);fillTo(e0);mover=L.marker(seq[0].pts[0],{icon:icon("📍"),zIndexOffset:1000}).addTo(map);
+ function next(){if(!playing)return;if(i>=seq.length){say("🎉 여행 끝! 수고하셨어요");playing=false;document.querySelectorAll(".stop.now").forEach(e=>e.classList.add("done"));document.getElementById("playall").textContent="↻ 다시 재생";return}
   const l=seq[i];let wait=0,big=l.m==="plane";
-  if(l.di!==lastDay){lastDay=l.di;const d=DAYS[l.di];say(`<b>${d.n.replace("<br>"," ")}</b> · ${d.t}`);if(!big){map.flyToBounds(dayBounds(l.di),{padding:[30,30],duration:1});wait=1100}}
+  if(l.di!==lastDay){if(lastDay>=0)dayStart(l.di);lastDay=l.di;const d=DAYS[l.di];say(`<b>${d.n.replace("<br>"," ")}</b> · ${d.t}`);if(!big){map.flyToBounds(dayBounds(l.di),{padding:[30,30],duration:1});wait=1100}}
   if(big){map.flyToBounds(L.latLngBounds(l.pts),{padding:[30,30],duration:1});wait=1100}
   else if(seq[i-1]&&seq[i-1].m==="plane"&&l.di===seq[i-1].di){map.flyToBounds(dayBounds(l.di),{padding:[30,30],duration:1});wait=1100}
   timer=setTimeout(()=>run(l),wait)}
  function run(l){const n=l.pts.length,dist=map.distance(l.pts[0],l.pts[n-1])/1000,dur=Math.min(3000,Math.max(1000,600+Math.sqrt(dist)*240));
-  const tr=L.polyline([],{color:colorOf(l),weight:5,dashArray:MODE[l.m].d}).addTo(anim);mover.setIcon(icon(MODE[l.m].i));const t0=performance.now();
+  const tr=L.polyline([],{color:colorOf(l),weight:5,dashArray:MODE[l.m].d}).addTo(anim);mover.setIcon(icon(MODE[l.m].i));const t0=performance.now();const mv=document.getElementById(`mv${l.di}-${l.k}`);if(mv){mv.style.setProperty("--dur",dur+"ms");mv.classList.remove("go");void mv.offsetWidth;mv.classList.add("go")}
   (function step(now){if(!playing)return;const f=Math.min(1,(now-t0)/dur),e=f<.5?2*f*f:1-Math.pow(-2*f+2,2)/2,j=Math.max(1,Math.round(e*(n-1)));
    tr.setLatLngs(l.pts.slice(0,j+1));mover.setLatLng(l.pts[j]);
    if(f<1){raf=requestAnimationFrame(step);return}
-   const s=DAYS[l.di].stops[l.k],el=document.getElementById(`s${l.di}-${l.k}`);mark(el);
+   const s=DAYS[l.di].stops[l.k],el=document.getElementById(`s${l.di}-${l.k}`);if(mv)mv.classList.remove("go");mark(el);fillTo(el);
    say(`${s[5]==="stay"?"🏠":s[5]==="food"?"🍽️":"📍"} ${s[0]} ${s[1]}`);
    const r=el.getBoundingClientRect(),top=document.getElementById("top").offsetHeight;if(r.top<top||r.bottom>innerHeight)el.scrollIntoView({behavior:"smooth",block:"center"});
    i++;timer=setTimeout(next,s[5]==="stay"?1200:600)})(t0)}
